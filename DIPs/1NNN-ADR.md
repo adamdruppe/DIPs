@@ -16,6 +16,37 @@
 Instead of requiring a format string followed by an argument list, string interpolation via formatted string tuple literals enables
 embedding the arguments in the string itself.
 
+While  designed  as  a  systems  language,  D's  flexible  syntax,  meta
+programming  capabilities,  and  fast  compilation  arguably  make  D  a
+compelling  alternative to  scripting languages  for many  applications.
+One place where D lacks the  same or alternative scripting capability is
+with string interpolation. This DIP
+solves  this  deficiency  by  adding an  _interpolated  string  argument
+builder_.  This design loosely follows [ETL](https://en.wikipedia.org/wiki/Extract,_transform,_load) (*Note: credit IRC conversation*) where there is a 
+front end that _extracts_ the format string and arguments from the text into an intermediate representation.  In this case,
+the intermediate representation is a tuple that can be passed directly to the `printf` style functions where the first
+argument is a format string and the remaining arguments are the expressions/variables. The transform step is done by user/system 
+function that wraps the call to the interpolated string.  *Note: There is no load step in this application*
+
+Instead of requiring a format string followed by an argument list, string interpolation via formatted string 
+tuple literals enables embedding the arguments in the string itself.
+
+Instead of:
+```D
+writef( "I ate %s apples and %d bananas totalling %s fruit", apples, bananas, apples + bananas );
+```
+Using interpolated syntax becomes
+
+```D
+writef(i"I ate ${apples} apples and ${%d,bananas} bananas totalling ${apples + bananas} fruit.");
+```
+
+By separating traditional string interpolation into two parts, the programmer
+has a more versatile and powerful abstraction than string interpolation alone.
+This proposal leverages existing language and library features so there is minimal 
+impact to the core language and runtime.
+
+
 
 ## Contents
 * [Rationale](#rationale)
@@ -34,6 +65,52 @@ that have many arguments. Omitted arguments, extra arguments, and mismatches
 between format specifiers and their corresponding arguments are common errors. Embedding arguments
 in the format strings can eliminate these errors. Readability is improved and the code is visually
 easier to review for correctness.
+
+This proposal was born from the rejection of DIP1027 that had the desire to have interpolated strings 
+short strings and a small number of arguments, it tends to break down with longer strings
+found in other languages and to have a generic capability to use the interpolated syntax with other domains.  For example,
+that have many arguments. Omitted arguments, extra arguments, and mismatches
+it should be possible to have an SQL aware transform.
+
+```D
+    auto result = db.query("SELECT field1, field2 FROM table WHERE field1 = ?", value1);
+```
+
+Another example is the generation of HTML tags
+
+```D
+    auto div = Parse("<div id=\"" ~ id ~ "\">");
+```
+
+These examples both benefit from the proposed interpolation syntax because the compiler can
+semantically verify the correctness of the expression while preparing a tuple suitable for arguments
+for subsequent function calls.
+
+```D
+    auto result = db.query(i"SELECT field1, field2 FROM table WHERE field1 = $value1");
+```
+
+With basic string interpolation, this syntax is convenient but dangerously wrong and opens you up to SQL injection.
+
+But with this DIP, the formatted argument list is detected by the called function and the data is processed correctly, just like in the original code, while leveraging the syntax niceties of interpolation.
+
+Another example is the generation of HTML tags
+
+```D
+    auto div = Parse(i"<div id=\"$id\">");
+```
+
+Again, the argument list avoids messy and injection-prone string concatenation while enabling convenient syntax. The parse function can now format the data correctly with proper encoding for its context.
+
+Readability is improved and the code is visually easier to review for correctness.
+Omitted arguments, extra arguments, and mismatches between format specifiers and their corresponding arguments are common errors. 
+Associating formatting arguments with their variables in the interpolated can reduce or eliminate these errors.
+
+In addition, this capability is expected to be useful in many other simple common cases
+that currently utilize _format_, _to_, and the _printf_ family of functions.  This further makes for
+a scalable and consistent programming interface for a number of application areas as strings 
+go from short strings with few number of parameters to longer strings with many parameters.
+
 
 ## Prior Work
 
